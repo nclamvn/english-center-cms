@@ -1,0 +1,598 @@
+// CMS Trung tam Anh ngu - Schema theo Blueprint
+// Tech: Next.js 14 + PostgreSQL + Prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// 5.1 Auth & Org
+// ============================================
+
+model Branch {
+  id        String   @id @default(cuid())
+  name      String
+  address   String?
+  phone     String?
+  status    String   @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users       User[]
+  classes     Class[]
+  leadForms   LeadForm[]
+
+  @@map("branches")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  phone         String?
+  password      String
+  emailVerified DateTime?
+  image         String?
+  status        String    @default("ACTIVE") // ACTIVE, INACTIVE
+  branchId      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  branch          Branch?           @relation(fields: [branchId], references: [id])
+  userRoles       UserRole[]
+  sessionsTeacher Session[]         @relation("TeacherSessions")
+  sessionsTA      Session[]         @relation("TASessions")
+  attendanceMarks Attendance[]      @relation("MarkedByUser")
+  attendanceLogs  AttendanceLog[]   @relation("AttendanceLogUser")
+  homeworkAssigns HomeworkAssignment[] @relation("AssignedByUser")
+  gradings        Grading[]         @relation("GradedByUser")
+  checklistDone   SessionChecklistItem[] @relation("DoneByUser")
+  leadsAssigned   Lead[]            @relation("AssigneeUser")
+  leadStageChanges LeadStageHistory[] @relation("ChangedByUser")
+  auditLogs       AuditLog[]        @relation("ActorUser")
+  accounts        Account[]
+  sessions        UserSession[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model UserSession {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(cuid())
+  module      String   // students, classes, sessions, attendance, homework, billing, leads, settings
+  action      String   // VIEW, CREATE, UPDATE, DELETE, APPROVE, EXPORT
+  description String?
+  createdAt   DateTime @default(now())
+
+  rolePermissions RolePermission[]
+
+  @@unique([module, action])
+  @@map("permissions")
+}
+
+model UserRole {
+  id        String   @id @default(cuid())
+  userId    String
+  roleId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  id           String   @id @default(cuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ============================================
+// 5.2 Academic
+// ============================================
+
+model Course {
+  id          String   @id @default(cuid())
+  name        String
+  level       String?  // Beginner, Elementary, Pre-Intermediate, etc.
+  description String?  @db.Text
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  classes Class[]
+
+  @@map("courses")
+}
+
+model Class {
+  id        String   @id @default(cuid())
+  courseId  String
+  branchId  String
+  name      String
+  startDate DateTime
+  endDate   DateTime?
+  status    String   @default("ACTIVE") // ACTIVE, COMPLETED, CANCELLED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course             Course              @relation(fields: [courseId], references: [id])
+  branch             Branch              @relation(fields: [branchId], references: [id])
+  enrollments        Enrollment[]
+  sessions           Session[]
+  homeworkAssignments HomeworkAssignment[]
+  billingPlans       BillingPlan[]
+
+  @@map("classes")
+}
+
+model Enrollment {
+  id        String    @id @default(cuid())
+  classId   String
+  studentId String
+  status    String    @default("ACTIVE") // ACTIVE, COMPLETED, DROPPED, PAUSED
+  joinedAt  DateTime  @default(now())
+  leftAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  class   Class   @relation(fields: [classId], references: [id])
+  student Student @relation(fields: [studentId], references: [id])
+
+  @@unique([classId, studentId])
+  @@map("enrollments")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  classId   String
+  date      DateTime @db.Date
+  startTime String   // HH:mm format
+  endTime   String   // HH:mm format
+  mode      String   @default("OFFLINE") // OFFLINE, ONLINE
+  room      String?
+  teacherId String?
+  taId      String?  // Teaching Assistant
+  status    String   @default("SCHEDULED") // SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED
+  notes     String?  @db.Text
+
+  // Lock fields - prevent editing after X hours
+  lockedAt   DateTime?
+  lockedBy   String?
+  lockReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  class               Class                  @relation(fields: [classId], references: [id])
+  teacher             User?                  @relation("TeacherSessions", fields: [teacherId], references: [id])
+  ta                  User?                  @relation("TASessions", fields: [taId], references: [id])
+  attendances         Attendance[]
+  checklistItems      SessionChecklistItem[]
+  homeworkAssignments HomeworkAssignment[]
+
+  @@unique([classId, date])
+  @@map("sessions")
+}
+
+model Attendance {
+  id           String   @id @default(cuid())
+  sessionId    String
+  studentId    String
+  status       String   // PRESENT, LATE, ABSENT_EXCUSED, ABSENT_UNEXCUSED, MAKEUP, ONLINE
+  lateMinutes  Int?
+  note         String?  @db.Text
+  attachment   String?  // URL to violation evidence
+  markedBy     String?
+  markedAt     DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  session  Session         @relation(fields: [sessionId], references: [id])
+  student  Student         @relation(fields: [studentId], references: [id])
+  marker   User?           @relation("MarkedByUser", fields: [markedBy], references: [id])
+  logs     AttendanceLog[]
+
+  @@unique([sessionId, studentId])
+  @@map("attendances")
+}
+
+// Attendance change log for audit trail
+model AttendanceLog {
+  id             String   @id @default(cuid())
+  attendanceId   String
+  action         String   // CREATE, UPDATE, DELETE
+  previousStatus String?
+  newStatus      String
+  previousNote   String?
+  newNote        String?
+  changedBy      String?
+  changedAt      DateTime @default(now())
+  reason         String?  // Reason for change (especially for unlocked edits)
+
+  attendance Attendance @relation(fields: [attendanceId], references: [id], onDelete: Cascade)
+  changer    User?      @relation("AttendanceLogUser", fields: [changedBy], references: [id])
+
+  @@index([attendanceId])
+  @@index([changedAt])
+  @@map("attendance_logs")
+}
+
+// ============================================
+// 5.3 Students & Parents
+// ============================================
+
+model Student {
+  id          String    @id @default(cuid())
+  fullName    String
+  dob         DateTime? @db.Date
+  gender      String?   // MALE, FEMALE, OTHER
+  phone       String?
+  email       String?
+  avatar      String?
+  status      String    @default("ACTIVE") // ACTIVE, PAUSED, QUIT
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  enrollments        Enrollment[]
+  attendances        Attendance[]
+  studentParents     StudentParent[]
+  previewTokens      ParentPreviewToken[]
+  submissions        Submission[]
+  charges            Charge[]
+
+  @@map("students")
+}
+
+model Parent {
+  id        String   @id @default(cuid())
+  fullName  String
+  phone     String?
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studentParents StudentParent[]
+
+  @@map("parents")
+}
+
+model StudentParent {
+  id           String   @id @default(cuid())
+  studentId    String
+  parentId     String
+  relationship String?  // FATHER, MOTHER, GUARDIAN, OTHER
+  isPrimary    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parent  Parent  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@unique([studentId, parentId])
+  @@map("student_parents")
+}
+
+model ParentPreviewToken {
+  id        String   @id @default(cuid())
+  studentId String
+  token     String   @unique
+  expiresAt DateTime
+  status    String   @default("ACTIVE") // ACTIVE, REVOKED, EXPIRED
+  createdAt DateTime @default(now())
+
+  student Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@map("parent_preview_tokens")
+}
+
+// ============================================
+// 5.4 Homework
+// ============================================
+
+model HomeworkTemplate {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  rubricJson  Json?    // { criteria: [{ name, maxScore, description }] }
+  maxScore    Int      @default(100)
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignments HomeworkAssignment[]
+
+  @@map("homework_templates")
+}
+
+model HomeworkAssignment {
+  id         String    @id @default(cuid())
+  classId    String
+  sessionId  String?   // Optional: link to specific session
+  templateId String
+  title      String?   // Override template title if needed
+  dueDate    DateTime?
+  assignedBy String
+  assignedAt DateTime  @default(now())
+  status     String    @default("ACTIVE") // ACTIVE, CLOSED
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  class       Class            @relation(fields: [classId], references: [id])
+  session     Session?         @relation(fields: [sessionId], references: [id])
+  template    HomeworkTemplate @relation(fields: [templateId], references: [id])
+  assignedByUser User          @relation("AssignedByUser", fields: [assignedBy], references: [id])
+  submissions Submission[]
+
+  @@map("homework_assignments")
+}
+
+model Submission {
+  id           String   @id @default(cuid())
+  assignmentId String
+  studentId    String
+  contentText  String?  @db.Text
+  fileUrl      String?
+  linkUrl      String?
+  submittedAt  DateTime @default(now())
+  status       String   @default("SUBMITTED") // SUBMITTED, GRADED, RETURNED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  assignment HomeworkAssignment @relation(fields: [assignmentId], references: [id])
+  student    Student            @relation(fields: [studentId], references: [id])
+  grading    Grading?
+
+  @@unique([assignmentId, studentId])
+  @@map("submissions")
+}
+
+model Grading {
+  id              String   @id @default(cuid())
+  submissionId    String   @unique
+  rubricScoresJson Json?   // { criteriaId: score, ... }
+  totalScore      Float
+  feedback        String?  @db.Text
+  gradedBy        String
+  gradedAt        DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  submission Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  grader     User       @relation("GradedByUser", fields: [gradedBy], references: [id])
+
+  @@map("gradings")
+}
+
+// ============================================
+// 5.5 Checklist
+// ============================================
+
+model ChecklistTemplate {
+  id          String   @id @default(cuid())
+  name        String
+  sessionMode String   @default("OFFLINE") // OFFLINE, ONLINE, TEST
+  itemsJson   Json     // [{ title, order, sla_minutes? }]
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  checklistItems SessionChecklistItem[]
+
+  @@map("checklist_templates")
+}
+
+model SessionChecklistItem {
+  id         String    @id @default(cuid())
+  sessionId  String
+  templateId String
+  title      String
+  order      Int       @default(0)
+  status     String    @default("TODO") // TODO, DONE, BLOCKED
+  note       String?   @db.Text
+  doneBy     String?
+  doneAt     DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  session  Session           @relation(fields: [sessionId], references: [id])
+  template ChecklistTemplate @relation(fields: [templateId], references: [id])
+  user     User?             @relation("DoneByUser", fields: [doneBy], references: [id])
+
+  @@map("session_checklist_items")
+}
+
+// ============================================
+// 5.6 Billing
+// ============================================
+
+model BillingPlan {
+  id              String   @id @default(cuid())
+  classId         String
+  pricePerSession Float
+  rulesJson       Json?    // { lateCountsAs: 1, absentExcused: 0, absentUnexcused: 1, ... }
+  status          String   @default("ACTIVE")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  class Class @relation(fields: [classId], references: [id])
+
+  @@map("billing_plans")
+}
+
+model Charge {
+  id          String   @id @default(cuid())
+  studentId   String
+  classId     String
+  periodStart DateTime @db.Date
+  periodEnd   DateTime @db.Date
+  amount      Float
+  calcJson    Json?    // { sessions: [], breakdown: {...} }
+  status      String   @default("PENDING") // PENDING, PAID, PARTIAL, CANCELLED
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  student  Student   @relation(fields: [studentId], references: [id])
+  payments Payment[]
+
+  @@map("charges")
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  chargeId  String
+  amount    Float
+  method    String?  // CASH, TRANSFER, CARD
+  paidAt    DateTime @default(now())
+  note      String?
+  createdAt DateTime @default(now())
+
+  charge Charge @relation(fields: [chargeId], references: [id])
+
+  @@map("payments")
+}
+
+// ============================================
+// 5.7 Leads
+// ============================================
+
+model LeadForm {
+  id        String   @id @default(cuid())
+  name      String
+  branchId  String?
+  fieldsJson Json?   // [{ name, label, type, required }]
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch Branch? @relation(fields: [branchId], references: [id])
+  leads  Lead[]
+
+  @@map("lead_forms")
+}
+
+model Lead {
+  id             String   @id @default(cuid())
+  formId         String?
+  parentName     String
+  phone          String
+  studentName    String?
+  studentAge     Int?
+  email          String?
+  note           String?  @db.Text
+  source         String?  // WALK_IN, FACEBOOK, GOOGLE, REFERRAL, etc.
+  utmJson        Json?    // { utm_source, utm_medium, utm_campaign }
+  stage          String   @default("NEW") // NEW, CONTACTED, TEST_SCHEDULED, TEST_DONE, OFFER_SENT, WON, LOST
+  assigneeId     String?
+  approvalStatus String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  form         LeadForm?          @relation(fields: [formId], references: [id])
+  assignee     User?              @relation("AssigneeUser", fields: [assigneeId], references: [id])
+  stageHistory LeadStageHistory[]
+
+  @@map("leads")
+}
+
+model LeadStageHistory {
+  id        String   @id @default(cuid())
+  leadId    String
+  fromStage String?
+  toStage   String
+  changedBy String?
+  changedAt DateTime @default(now())
+  note      String?  @db.Text
+
+  lead      Lead  @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  changer   User? @relation("ChangedByUser", fields: [changedBy], references: [id])
+
+  @@map("lead_stage_history")
+}
+
+// ============================================
+// 5.8 Audit
+// ============================================
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  actorId   String?
+  entity    String   // Student, Attendance, Submission, Charge, Lead, etc.
+  entityId  String
+  action    String   // CREATE, UPDATE, DELETE
+  diffJson  Json?    // { before: {...}, after: {...} }
+  createdAt DateTime @default(now())
+
+  actor User? @relation("ActorUser", fields: [actorId], references: [id])
+
+  @@index([entity, entityId])
+  @@index([actorId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
