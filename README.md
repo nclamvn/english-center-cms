@@ -1,175 +1,240 @@
-# CMS Trung Tam Anh Ngu
+# English Center CMS
 
-He thong quan ly trung tam Anh ngu theo Blueprint - Mobile-first Operations
+Hệ thống quản lý trung tâm tiếng Anh - Operating System cho vận hành lớp học.
+
+![Next.js](https://img.shields.io/badge/Next.js-16.1-black?logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?logo=typescript)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-4.0-38B2AC?logo=tailwind-css)
+![Prisma](https://img.shields.io/badge/Prisma-5.22-2D3748?logo=prisma)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-15-336791?logo=postgresql)
+
+## Features
+
+### Core Modules
+- **Điểm danh (Attendance)** - Mobile-first, 6 trạng thái, lock sau 2 giờ, audit log
+- **Quản lý học viên (Students)** - Hồ sơ, timeline, parent preview link
+- **Quản lý lớp học (Classes)** - Khóa học, buổi học, enrollment
+- **Checklist SOP** - Template theo loại buổi, critical gate, SLA
+- **Leads Pipeline** - Kanban board, stage history, phân công
+- **Học phí (Billing)** - Tính theo buổi học thực tế
+
+### Security & Access Control
+- **RBAC** - 5 vai trò: Admin, Manager, Teacher, TA, Accountant
+- **Audit Log** - Ghi lại mọi thay đổi quan trọng
+- **Session Lock** - Khóa điểm danh sau thời gian quy định
+- **Parent Preview Token** - Link read-only với expiry
 
 ## Tech Stack
 
-- **Frontend**: Next.js 14 (App Router) + TypeScript + Tailwind CSS
-- **UI Components**: shadcn/ui + Radix UI
-- **Database**: PostgreSQL + Prisma ORM
-- **Authentication**: NextAuth.js v5 (Auth.js)
-- **State**: React Server Components + Client Components
+| Layer | Technology |
+|-------|------------|
+| Framework | Next.js 16 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS 4 |
+| Database | PostgreSQL |
+| ORM | Prisma 5 |
+| Auth | NextAuth v5 (Auth.js) |
+| Animation | Framer Motion |
+| UI Components | Radix UI |
 
-## Tinh nang
+## Getting Started
 
-### 1. Diem danh (Mobile-first)
-- UI toi uu cho dien thoai
-- 6 trang thai diem danh: Co mat, Di tre, Nghi phep, Nghi KP, Hoc bu, Online
-- Luu nhanh (bulk save)
-- Ghi chu va dinh kem vi pham
+### Prerequisites
 
-### 2. Checklist Tro giang (Mobile-first)
-- Template theo loai buoi hoc (Offline/Online)
-- Trang thai: TODO, DONE, BLOCKED
-- % hoan thanh theo buoi
+- Node.js 18+
+- PostgreSQL 14+
+- pnpm / npm / yarn
 
-### 3. Quan ly Hoc vien
-- CRUD hoc vien
-- Thong tin phu huynh
-- Lich su chuyen can
-- Bai tap va diem
-
-### 4. Parent Preview (Public Link)
-- Link xem tien do cho phu huynh
-- Token bao mat co thoi han
-- Read-only, chi xem 1 hoc vien
-
-### 5. Quan ly Leads
-- Pipeline Kanban view
-- Stage tracking voi lich su
-- Assignee va approval status
-
-### 6. Hoc phi
-- Tinh phi tu dong theo diem danh
-- Billing rules config duoc
-- Export bao cao
-
-## Cai dat
-
-### 1. Clone va cai dat dependencies
+### Installation
 
 ```bash
+# Clone repository
+git clone https://github.com/nclamvn/english-center-cms.git
+cd english-center-cms
+
+# Install dependencies
 npm install
-```
 
-### 2. Cau hinh database
+# Setup environment variables
+cp .env.example .env
+# Edit .env with your database credentials
 
-Tao database PostgreSQL roi cap nhat file `.env`:
+# Setup database
+npx prisma db push
+npx prisma db seed
 
-```env
-DATABASE_URL="postgresql://user:password@localhost:5432/english_center?schema=public"
-AUTH_SECRET="your-secret-key"
-AUTH_URL="http://localhost:3000"
-```
-
-### 3. Khoi tao database
-
-```bash
-# Generate Prisma client
-npm run db:generate
-
-# Push schema to database
-npm run db:push
-
-# Seed data mau
-npm run db:seed
-```
-
-### 4. Chay development server
-
-```bash
+# Start development server
 npm run dev
 ```
 
-Mo http://localhost:3000
+### Environment Variables
 
-## Tai khoan mac dinh
+Create a `.env` file in the root directory:
 
-Sau khi chay seed:
+```env
+# Database - PostgreSQL
+DATABASE_URL="postgresql://user:password@localhost:5432/english_center?schema=public"
 
-- **Admin**: admin@example.com / admin123
-- **Teacher**: teacher@example.com / admin123
+# NextAuth
+AUTH_SECRET="generate-a-random-secret-key-here"
+AUTH_URL="http://localhost:3000"
 
-## Cau truc thu muc
+# App
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+```
+
+> **Security Note:** Never commit `.env` file. Generate `AUTH_SECRET` using:
+> ```bash
+> openssl rand -base64 32
+> ```
+
+## Demo Accounts
+
+| Email | Password | Role |
+|-------|----------|------|
+| admin@example.com | admin123 | ADMIN |
+| manager@example.com | admin123 | MANAGER |
+| teacher@example.com | admin123 | TEACHER |
+| ta@example.com | admin123 | TA |
+| accountant@example.com | admin123 | ACCOUNTANT |
+
+## Project Structure
 
 ```
 src/
 ├── app/
-│   ├── (auth)/           # Login page
-│   ├── (dashboard)/      # Authenticated pages
-│   │   ├── attendance/   # Diem danh
-│   │   ├── dashboard/    # Trang chu
-│   │   ├── leads/        # Quan ly leads
-│   │   ├── sessions/     # Checklist tro giang
-│   │   └── students/     # Quan ly hoc vien
-│   ├── (public)/         # Public pages
-│   │   └── p/[token]/    # Parent preview
-│   └── api/              # API routes
+│   ├── (auth)/           # Auth pages (login)
+│   ├── (dashboard)/      # Protected dashboard pages
+│   │   ├── attendance/   # Điểm danh
+│   │   ├── billing/      # Học phí
+│   │   ├── classes/      # Lớp học
+│   │   ├── dashboard/    # Trang chủ
+│   │   ├── homework/     # Bài tập
+│   │   ├── leads/        # CRM Pipeline
+│   │   ├── sessions/     # Buổi học & Checklist
+│   │   ├── settings/     # Cài đặt
+│   │   └── students/     # Học viên
+│   ├── (public)/         # Public pages (parent preview)
+│   ├── api/              # API routes
+│   └── page.tsx          # Landing page
 ├── components/
-│   ├── layout/           # Sidebar, Header
-│   └── ui/               # shadcn/ui components
+│   ├── layout/           # Header, Sidebar
+│   └── ui/               # Reusable UI components
 ├── lib/
-│   ├── auth.ts           # NextAuth config
+│   ├── auth.ts           # NextAuth configuration
 │   ├── audit.ts          # Audit log helper
 │   ├── prisma.ts         # Prisma client
 │   └── utils.ts          # Utility functions
-└── types/
-    └── index.ts          # Type definitions
+└── types/                # TypeScript types
 ```
 
 ## API Endpoints
 
-### Authentication
-- POST /api/auth/signin
-- POST /api/auth/signout
-
-### Students
-- GET /api/students
-- POST /api/students
-- GET /api/students/[id]
-- PATCH /api/students/[id]
-- DELETE /api/students/[id]
-- POST /api/students/[id]/preview-token
-
-### Sessions
-- GET /api/sessions
-- POST /api/sessions
-- GET /api/sessions/[id]/attendance
-- POST /api/sessions/[id]/attendance (bulk save)
-- GET /api/sessions/[id]/checklist
-- POST /api/sessions/[id]/checklist
-
-### Leads
-- GET /api/leads
-- POST /api/leads
-- POST /api/leads/[id]/stage
-
-### Billing
-- POST /api/billing/generate
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/auth/*` | * | NextAuth endpoints |
+| `/api/students` | GET, POST | Student management |
+| `/api/students/[id]` | GET, PUT, DELETE | Single student |
+| `/api/students/[id]/preview-token` | POST, DELETE | Parent preview token |
+| `/api/classes` | GET, POST | Class management |
+| `/api/sessions` | GET, POST | Session management |
+| `/api/sessions/[id]/attendance` | GET, POST | Attendance |
+| `/api/sessions/[id]/attendance/logs` | GET | Attendance history |
+| `/api/sessions/[id]/lock` | GET, POST | Session lock |
+| `/api/sessions/[id]/checklist` | GET, POST | TA checklist |
+| `/api/leads` | GET, POST | Leads pipeline |
+| `/api/leads/[id]/stage` | PUT | Update lead stage |
+| `/api/billing/generate` | POST | Generate billing |
 
 ## Roles & Permissions
 
-| Role | Quyen |
+| Role | Quyền |
 |------|-------|
 | ADMIN | Full access |
-| MANAGER | Quan ly van hanh (tru settings) |
-| TEACHER | Lop minh day + attendance + homework |
+| MANAGER | Quản lý vận hành (trừ settings) |
+| TEACHER | Lớp mình dạy + attendance + homework |
 | TA | Sessions + attendance |
 | ACCOUNTANT | Read students + billing + export |
 
 ## Scripts
 
 ```bash
-npm run dev          # Chay development
-npm run build        # Build production
-npm run start        # Chay production
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run start        # Start production server
+npm run lint         # Run ESLint
 npm run db:generate  # Generate Prisma client
-npm run db:push      # Push schema to DB
+npm run db:push      # Push schema to database
 npm run db:migrate   # Run migrations
-npm run db:seed      # Seed data mau
-npm run db:studio    # Mo Prisma Studio
+npm run db:seed      # Seed database
+npm run db:studio    # Open Prisma Studio
 ```
+
+## Database Schema
+
+### Core Models
+- **User** - Staff accounts with RBAC
+- **Student** - Student profiles
+- **Class** - Class/course instances
+- **Session** - Individual class sessions
+- **Attendance** - Attendance records (6 statuses)
+- **AttendanceLog** - Audit trail for attendance changes
+
+### Supporting Models
+- **Role, Permission, UserRole, RolePermission** - RBAC system
+- **ChecklistTemplate, SessionChecklistItem** - SOP checklists
+- **HomeworkTemplate, HomeworkAssignment, Grading** - Homework system
+- **Lead, LeadForm, LeadStageHistory** - CRM pipeline
+- **BillingPlan, BillingRecord** - Billing system
+- **ParentPreviewToken** - Secure parent access
+- **AuditLog** - System-wide audit trail
+
+## Security Considerations
+
+- All API routes are protected with NextAuth session
+- RBAC enforced at both API and UI level
+- Passwords hashed with bcrypt (10 rounds)
+- Parent preview tokens have expiry dates
+- Attendance locked after configurable time window
+- All sensitive changes logged to AuditLog
+- `.env` file excluded from git
+
+## Deployment
+
+### Vercel (Recommended)
+
+1. Push to GitHub
+2. Import project in Vercel
+3. Add environment variables
+4. Deploy
+
+### Manual
+
+```bash
+npm run build
+npm run start
+```
+
+## Roadmap
+
+- [ ] Multi-branch support
+- [ ] Advanced reporting dashboard
+- [ ] Mobile app (React Native)
+- [ ] WhatsApp/Zalo integration
+- [ ] Online payment integration
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
 ## License
 
-MIT
+MIT License - see [LICENSE](LICENSE) for details.
+
+---
+
+Built with Next.js and Prisma
